@@ -1,5 +1,10 @@
+#![feature(decl_macro)]
+extern crate rocket;
+use rocket::{get, routes, launch};
+extern crate chrono;
 use std::env;
 
+use chrono::NaiveDate;
 use diesel::prelude::*;
 use diesel::PgConnection;
 use dotenv::dotenv;
@@ -10,16 +15,16 @@ mod schema;
 #[derive(Queryable)]
 struct EventEntity {
     event_name: String,
-    starting_date: Option<String>, // Consider using chrono::NaiveDate if you want to handle it as a date
-    number_of_days: Option<i32>,
-    number_of_sessions: Option<i32>,
+    starting_date: NaiveDate,
+    number_of_days: i32,
+    number_of_sessions: i32,
 }
 
 #[derive(Insertable)]
 #[diesel(table_name = event)]
 struct NewEvent {
     event_name: String,
-    starting_date: String,
+    starting_date: NaiveDate,
     number_of_days: i32,
     number_of_sessions: i32,
 }
@@ -34,12 +39,12 @@ fn establish_connection() -> PgConnection {
         .expect(&format!("Error connecting to {}", database_url))
 }
 
-fn main() {
+fn test() {
     let mut connection = establish_connection();
-
+    let date = NaiveDate::parse_from_str("2023-10-12", "%Y-%m-%d").expect("Hardcode date must be valid");
     let new_event = NewEvent {
-        event_name: String::from("Test2"),
-        starting_date: String::from("10-12-2020"),
+        event_name: String::from("Test4"),
+        starting_date: date,
         number_of_days: 2,
         number_of_sessions: 2,
     };
@@ -57,4 +62,15 @@ fn main() {
     for entity in results {
         print!("Found entity {}", entity.event_name);
     }
+}
+
+
+#[get("/")]
+fn index() {
+
+}
+
+#[launch]
+fn rocket() -> _ {
+    rocket::build().mount("/", routes![index])
 }

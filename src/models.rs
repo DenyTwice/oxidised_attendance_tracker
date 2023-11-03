@@ -1,3 +1,5 @@
+extern crate chrono;
+use chrono::Naviedate;
 mod schema;
 use crate::schema::attendee;
 use crate::schema::event;
@@ -9,7 +11,7 @@ use serde_json::Value as JsonValue;
 #[diesel(table_name = event)]
 pub struct Event {
     pub event_name: String,
-    pub starting_date: String, // Consider using chrono::NaiveDate if you want to handle it as a date
+    pub starting_date: Naviedate, // Consider using chrono::NaiveDate if you want to handle it as a date
     pub number_of_days: i32,
     pub number_of_sessions: i32,
 }
