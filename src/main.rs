@@ -1,76 +1,75 @@
-#![feature(decl_macro)]
-extern crate rocket;
-use rocket::{get, routes, launch};
-extern crate chrono;
-use std::env;
+mod models;
+mod schema;
+mod database;
 
-use chrono::NaiveDate;
-use diesel::prelude::*;
-use diesel::PgConnection;
-use dotenv::dotenv;
 use schema::event;
 
-mod schema;
+use diesel::prelude::*;
+use rocket::http::Status;
+use rocket::post;
 
-#[derive(Queryable)]
-struct EventEntity {
-    event_name: String,
-    starting_date: NaiveDate,
-    number_of_days: i32,
-    number_of_sessions: i32,
+use rocket::data::Data;
+
+#[rocket::launch]
+fn rocket() -> _ {
+    rocket::build().mount("/", rocket::routes![upload_csv])
 }
 
-#[derive(Insertable)]
-#[diesel(table_name = event)]
-struct NewEvent {
-    event_name: String,
-    starting_date: NaiveDate,
-    number_of_days: i32,
-    number_of_sessions: i32,
-}
+#[post("/<event>/upload_csv", format="text/csv", data="<data>")]
+async fn upload_csv(event: String, data: Data<'_>) -> Result<Status, Status> {
 
-fn establish_connection() -> PgConnection {
-    dotenv().ok();
-
-    let database_url = env::var("DATABASE_URL")
-        .expect("Database URL must be set");
-
-    PgConnection::establish(&database_url)
-        .expect(&format!("Error connecting to {}", database_url))
-}
-
-fn test() {
-    let mut connection = establish_connection();
-    let date = NaiveDate::parse_from_str("2023-10-12", "%Y-%m-%d").expect("Hardcode date must be valid");
-    let new_event = NewEvent {
-        event_name: String::from("Test4"),
-        starting_date: date,
-        number_of_days: 2,
-        number_of_sessions: 2,
+    const MAX_SIZE: i32 = 32 * 1024 * 1024;
+    let string_data = match data.open(rocket::data::ToByteUnit::bytes(MAX_SIZE)).into_string().await {
+        Ok(string) => string,
+        Err(_) => return Err(Status::),
     };
 
-    diesel::insert_into(event::table)
-        .values(&new_event)
-        .execute(&mut connection)
-        .expect("Error inserting event");
+    let mut rdr = csv::ReaderBuilder::new()
+        .has_headers(false)
+        .from_reader(string_data.as_bytes());
 
-    let results: Vec<EventEntity> = event::table
-        .limit(5)
-        .load::<EventEntity>(&mut connection)
-        .expect("Error loading results from event");
+    let mut records = Vec::new();
+    for result in rdr.deserialize() {
+        let record: models::AttendeeCSV = match result {
+            Ok(record) => record,
+            Err(_) => {
+                return Err(Status::BadRequest)
+            }
+        };
+        records.push(record);
+    };
 
-    for entity in results {
-        print!("Found entity {}", entity.event_name);
+    let mut connection = database::establish_connection();  
+    let Ok((start_date, num_of_days, num_of_sessions)) = event::dsl::event.filter(event::event_name.eq(input_event))
+                                                   .select((event::starting_date, event::number_of_days, event::number_of_sessions))
+                                                   .first::<(chrono::NaiveDate, i32, i32)>(&mut connection)
+                                                   else {
+                                                       return Err(Status::BadRequest)
+                                                   };
+
+    let mut attendance_log_json = json!({
+        "log": []
+    });
+    for day in 0..num_of_days {
+        let day: u64 = day as u64;
+        let date = start_date.checked_add_days(chrono::Days::new(day));
+        let final_date = date.format("%Y-%m-%d").to_string();
+        for sessions in 0..num_of_sessions {
+            if let Some(log) = attendance_log_json["log"].as_object_mut() {
+                log.insert(String::from("date"), serde_json::Value::String(start_date));
+            }
+        }
     }
-}
-
-
-#[get("/")]
-fn index() {
-
-}
-
-#[launch]
-fn rocket() -> _ {
-    rocket::build().mount("/", routes![index])
+    for record in records {
+        let attendee_json = json!({
+            "id": record.id,
+            "name": record.name,
+            "email": record.email,
+            "roll_number": record.roll_number,
+            "misc_log": {
+                "log" : []
+            }
+        });
+    };
+    Ok(Status::Ok)
 }
