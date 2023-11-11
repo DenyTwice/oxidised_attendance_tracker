@@ -6,11 +6,12 @@ use super::schema::{event, attendee};
 
 #[derive(Queryable, Serialize, Deserialize, Insertable)]
 #[diesel(table_name = event)]
+#[serde(crate = "rocket::serde")]
 pub struct Event {
-    pub event_name: String,
-    pub starting_date: NaiveDate,
-    pub number_of_days: i32,
-    pub number_of_sessions: i32,
+    pub name: String,
+    pub start_date: NaiveDate,
+    pub total_days: i32,
+    pub total_sessions: i32,
 }
 
 #[derive(Queryable, Serialize, Deserialize, Insertable)]
@@ -32,4 +33,22 @@ pub struct AttendeeCSV {
     pub name: String,
     pub email: String,
     pub roll_number: String,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(crate = "rocket::serde")]
+pub struct NewEvent {
+    pub name: String,
+    pub start_date: String,
+    pub total_days: i32,
+    pub total_sessions: i32,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(crate = "rocket::serde")]
+pub struct AttendanceInfo {
+    pub date: String,
+    pub time: String,
+    pub session: String,
+    pub id: String
 }

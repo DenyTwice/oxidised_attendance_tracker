@@ -2,14 +2,14 @@
 
 diesel::table! {
     attendee (id) {
-        id -> Int4,
         #[max_length = 100]
         event_name -> Nullable<Varchar>,
-        #[max_length = 100]
+        id -> Int4,
+        #[max_length = 150]
         name -> Varchar,
-        #[max_length = 100]
+        #[max_length = 150]
         email -> Varchar,
-        #[max_length = 50]
+        #[max_length = 30]
         roll_number -> Nullable<Varchar>,
         attendance_log -> Jsonb,
         misc_log -> Jsonb,
@@ -17,12 +17,12 @@ diesel::table! {
 }
 
 diesel::table! {
-    event (event_name) {
+    event (name) {
         #[max_length = 100]
-        event_name -> Varchar,
-        starting_date -> Date,
-        number_of_days -> Int4,
-        number_of_sessions -> Int4,
+        name -> Varchar,
+        start_date -> Date,
+        total_days -> Int4,
+        total_sessions -> Int4,
     }
 }
 
