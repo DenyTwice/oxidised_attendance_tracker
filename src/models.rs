@@ -14,6 +14,18 @@ pub struct Event {
     pub total_sessions: i32,
 }
 
+impl From<NewEvent> for Event {
+    fn from(value: NewEvent) -> Self {
+        const DATE_FORMAT: &str = "%d/%m/%Y";
+        let date = NaiveDate::parse_from_str(&value.start_date, DATE_FORMAT).expect("Date conversion from string to Naivedate");
+        Event {
+            name: value.name,
+            start_date: date,
+            total_days: value.total_days,
+            total_sessions: value.total_sessions
+        }
+    }
+}
 #[derive(Queryable, Serialize, Deserialize, Insertable)]
 #[diesel(table_name = attendee)]
 pub struct Attendee {
