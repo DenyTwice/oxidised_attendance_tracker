@@ -26,14 +26,15 @@ impl From<NewEvent> for Event {
         }
     }
 }
+
 #[derive(Queryable, Serialize, Deserialize, Insertable)]
 #[diesel(table_name = attendee)]
 pub struct Attendee {
-    pub id: i32,
     pub event_name: String,
+    pub id: i32,
     pub name: String,
     pub email: String,
-    pub roll_number: String,
+    pub roll_number: Option<String>,
     pub attendance_log: JsonValue,
     pub misc_log: JsonValue,
 }
@@ -41,7 +42,6 @@ pub struct Attendee {
 #[derive(Deserialize)]
 pub struct AttendeeCSV {
     pub id: i32,
-    pub event_name: String,
     pub name: String,
     pub email: String,
     pub roll_number: String,

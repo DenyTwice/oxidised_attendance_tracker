@@ -3,7 +3,7 @@
 diesel::table! {
     attendee (id) {
         #[max_length = 100]
-        event_name -> Nullable<Varchar>,
+        event_name -> Varchar,
         id -> Int4,
         #[max_length = 150]
         name -> Varchar,

@@ -1,45 +1,47 @@
 mod models;
 mod schema;
-mod database;
 
-use database::establish_connection;
-use models::Event;
+use std::collections::HashMap;
+
+use chrono::format;
 use models::{NewEvent, AttendanceInfo};
-use schema::event::dsl::*;
+use models::{Event, Attendee};
 use schema::event::table as EventTable;
+use schema::attendee::table as AttendeeTable;
 
+use diesel::prelude::*;
 use diesel::RunQueryDsl;
+
 use rocket::http::Status;
 use rocket::{get, post};
 use rocket::data::Data;
-
 use rocket::serde::json::Json;
+use rocket::State;
 
-use diesel::prelude::*;
-use diesel::r2d2::{self, ConnectionManager};
+use serde::Serialize;
 
-type DbPool = r2d2::Pool<ConnectionManager<PgConnection>>;
+type DatabasePool = r2d2::Pool<diesel::r2d2::ConnectionManager<PgConnection>>;
 
 #[rocket::launch]
 fn rocket() -> _ {
 
     dotenv::dotenv().ok();
     let database_url: String = std::env::var("DATABASE_URL").expect("Database URL must be set");
-    let manager = ConnectionManager::<PgConnection>::new(DATABASE_URL);
+    let manager = diesel::r2d2::ConnectionManager::<PgConnection>::new(database_url);
     let pool = r2d2::Pool::builder().build(manager).expect("Failed to create pool.");
 
     rocket::build()
         .manage(pool)
-        .mount("/", rocket::routes![create_event, get_events])
+        .mount("/", rocket::routes![create_event, get_events, delete_event, get_attendees, upload_csv])
 }
 
 #[post("/create_event", format="json", data="<data>")]
-fn create_event(pool: &rocket::State<DbPool>, data: Json<NewEvent>) -> Status {
+fn create_event(pool: &State<DatabasePool>, data: Json<NewEvent>) -> Status {
     
     let new_event: NewEvent = data.into_inner();
     let other_event: models::Event = models::Event::from(new_event);
 
-    let mut connection = pool.get().expect("TODO");
+    let mut connection = pool.get().expect("Connection from pool");
 
     diesel::insert_into(EventTable)
         .values(&other_event)
@@ -50,8 +52,8 @@ fn create_event(pool: &rocket::State<DbPool>, data: Json<NewEvent>) -> Status {
 }
 
 #[get("/events")]
-fn get_events() -> Json<Vec<Event>> {
-    let mut conn = establish_connection();
+fn get_events(pool: &State<DatabasePool>) -> Json<Vec<Event>> {
+    let mut conn = pool.get().expect("Connection from pool");
 
     let result = EventTable
         .load::<Event>(&mut conn)
@@ -59,17 +61,28 @@ fn get_events() -> Json<Vec<Event>> {
 
     Json(result)
 }
-//
-//#[post("/<event>/delete")]
-//fn delete_event(event: String) -> String {
-//    format!("deleted {} ", event)
-//}
-//
-//#[get("/<event>/attendees")]
-//fn get_attendees(event: String) -> String {
-//    format!("get from {}", event)
-//}
-//
+
+#[post("/<event_name>/delete")]
+fn delete_event(pool: &State<DatabasePool>, event_name: String) -> Status {
+    let mut conn = pool.get().expect("Connection from pool");
+    match diesel::delete(EventTable.filter(schema::event::name.eq(event_name))) .execute(&mut conn) {
+        Ok(_) => Status::Ok,
+        Err(_) => Status::BadRequest,
+    }
+}
+
+#[get("/<event_name>/attendees")]
+fn get_attendees(pool: &State<DatabasePool>, event_name: String) -> Json<Vec<Attendee>> {
+    let mut conn = pool.get().expect("Connection from pool");
+    
+    let result =  AttendeeTable
+        .filter(schema::attendee::event_name.eq(event_name))
+        .load::<Attendee>(&mut conn)
+        .expect("Load data from attendee table in get_attendees");
+
+    Json(result)
+}
+
 //#[post("/<event>/mark_attendance", format="json", data="<data>")]
 //fn mark_attendance(event: String, data: Json<AttendanceInfo>) -> String {
 //    format!("attendee of event {}", event)
@@ -80,62 +93,64 @@ fn get_events() -> Json<Vec<Event>> {
 //    format!("yes of this {}", event)
 //}
 
-//#[post("/<event>/upload_csv", format="text/csv", data="<data>")]
-//async fn upload_csv(event: String, data: Data<'_>) -> Result<Status, Status> {
-//
-//    const MAX_SIZE: i32 = 32 * 1024 * 1024; // TODO: can research and optimize further
-//    let string_data = match data.open(rocket::data::ToByteUnit::bytes(MAX_SIZE)).into_string().await {
-//        Ok(string) => string,
-//        Err(_) => return Err(Status::BadRequest), // ERROR: Could not convert to string
-//    };
-//
-//    let mut rdr = csv::ReaderBuilder::new()
-//        .has_headers(false)
-//        .from_reader(string_data.as_bytes());
-//
-//    let mut records = Vec::new();
-//    for result in rdr.deserialize() {
-//        let record: models::AttendeeCSV = match result {
-//            Ok(record) => record,
-//            Err(_) => return Err(Status::BadRequest) // ERROR: Could not desearlize
-//            
-//        };
-//        records.push(record);
-//    };
-//
-    //let mut connection = database::establish_connection();  
-
-    //let Ok((start_date, num_of_days, num_of_sessions)) = event::dsl::event.filter(event::event_name.eq(event))
-    //                                               .select((event::starting_date, event::number_of_days, event::number_of_sessions))
-    //                                               .first::<(chrono::NaiveDate, i32, i32)>(&mut connection)
-    //                                               else {
-    //                                                   return Err(Status::BadRequest)
-    //                                               };
-
-    //let mut attendance_log_json = json!({
-    //    "log": []
-    //});
-    //for day in 0..num_of_days {
-    //    let day: u64 = day as u64;
-    //    let date = start_date.checked_add_days(chrono::Days::new(day));
-    //    let final_date = date.format("%Y-%m-%d").to_string();
-    //    for sessions in 0..num_of_sessions {
-    //        if let Some(log) = attendance_log_json["log"].as_object_mut() {
-    //            log.insert(String::from("date"), serde_json::Value::String(start_date));
-    //        }
-    //    }
-    //}
-    //for record in records {
-    //    let attendee_json = json!({
-    //        "id": record.id,
-    //        "name": record.name,
-    //        "email": record.email,
-    //        "roll_number": record.roll_number,
-    //        "misc_log": {
-    //            "log" : []
-    //        }
-    //    });
-    //};
+#[post("/<event>/upload_csv", format="text/csv", data="<data>")]
+async fn upload_csv(pool: &State<DatabasePool>, event: &str, data: Data<'_>) -> Result<Status, Status> {
     
-//    Ok(Status::Ok)
-//}
+    #[derive(Serialize, Debug)]
+    enum Values {
+        String(String),
+        Boolean(bool)
+    }
+
+    const MAX_SIZE: i32 = 32 * 1024 * 1024; // TODO: can research and optimize further
+    let string_data = match data.open(rocket::data::ToByteUnit::bytes(MAX_SIZE)).into_string().await {
+        Ok(string) => string,
+        Err(_) => return Err(Status::BadRequest), // ERROR: Could not convert to string
+    };
+
+    let mut rdr = csv::ReaderBuilder::new()
+        .has_headers(false)
+        .from_reader(string_data.as_bytes());
+
+    let mut records = Vec::new();
+    for result in rdr.deserialize() {
+        let record: models::AttendeeCSV = match result {
+            Ok(record) => record,
+            Err(_) => { print!("Yesysatadsadas");
+                return Err(Status::BadRequest); // ERROR: Could not desearlize
+                                            }
+            
+        };
+        records.push(record);
+    };
+
+  let mut connection = pool.get().expect("Connection from pool");
+
+  let Ok((start_date, total_days, total_sessions)) = EventTable
+      .select((schema::event::start_date, schema::event::total_days, schema::event::total_sessions))
+      .first::<(chrono::NaiveDate, i32, i32)>(&mut connection)
+      else {
+          return Err(Status::BadRequest)
+      };
+
+  let mut attendance_log_json = serde_json::json!({
+      "log": []
+  });
+
+  for day in 0..total_days {
+      let date = start_date.checked_add_days(chrono::Days::new(day as u64)).expect("date addtion to work");
+      let final_date = date.format("%d/%m/%Y").to_string();
+      let mut element: HashMap<String, Values> = HashMap::new(); 
+      println!("{:?}", Values::String(String::from("ok")));
+      element.insert(String::from("date"), Values::String(final_date));
+      for i in 0..total_sessions {
+          let session = format!("session{}", i);
+          element.insert(session, Values::Boolean(false));
+      }
+      let log = attendance_log_json["log"].as_array_mut().expect("Yes");
+      let element_obj = serde_json::to_value(element).expect("Hope");
+      log.push(element_obj);
+  }
+    println!("{}", attendance_log_json);
+    Ok(Status::Ok)
+}
