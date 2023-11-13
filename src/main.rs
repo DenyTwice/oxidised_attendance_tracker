@@ -1,11 +1,7 @@
 mod models;
 mod schema;
 
-use std::collections::HashMap;
-
-use chrono::format;
-use models::{NewEvent, AttendanceInfo};
-use models::{Event, Attendee};
+use models::{NewEvent, Event, Attendee};
 use schema::event::table as EventTable;
 use schema::attendee::table as AttendeeTable;
 
@@ -26,48 +22,52 @@ type DatabasePool = r2d2::Pool<diesel::r2d2::ConnectionManager<PgConnection>>;
 fn rocket() -> _ {
 
     dotenv::dotenv().ok();
-    let database_url: String = std::env::var("DATABASE_URL").expect("Database URL must be set");
+    let database_url: String = std::env::var("DATABASE_URL").expect("ERROR: Could not get database URL from environment variable.");
+
     let manager = diesel::r2d2::ConnectionManager::<PgConnection>::new(database_url);
-    let pool = r2d2::Pool::builder().build(manager).expect("Failed to create pool.");
+    let pool = r2d2::Pool::builder().build(manager).expect("ERROR: Could not build connection pool for database.");
 
     rocket::build()
         .manage(pool)
-        .mount("/", rocket::routes![create_event, get_events, delete_event, get_attendees, upload_csv])
+        .mount("/", rocket::routes![
+               create_event, get_events, delete_event, 
+               get_attendees, upload_csv
+        ])
 }
 
 #[post("/create_event", format="json", data="<data>")]
 fn create_event(pool: &State<DatabasePool>, data: Json<NewEvent>) -> Status {
-    
     let new_event: NewEvent = data.into_inner();
-    let other_event: models::Event = models::Event::from(new_event);
+    let insertable_event: models::Event = models::Event::from(new_event);
 
-    let mut connection = pool.get().expect("Connection from pool");
+    let mut connection = pool.get().expect("ERROR: Failed to get database connection from pool.");
 
     diesel::insert_into(EventTable)
-        .values(&other_event)
+        .values(&insertable_event)
         .execute(&mut connection)
-        .expect("TODO");
+        .expect("ERROR: Failed to insert Event into table."); // TODO Error handling
 
     Status::Ok
 }
 
 #[get("/events")]
 fn get_events(pool: &State<DatabasePool>) -> Json<Vec<Event>> {
-    let mut conn = pool.get().expect("Connection from pool");
+    let mut conn = pool.get().expect("ERROR: Failed to get database connection from pool.");
 
     let result = EventTable
         .load::<Event>(&mut conn)
-        .expect("Load data from eventtable in get_events");
+        .expect("ERROR: Failed to load data from event table."); // TODO Error handling
 
     Json(result)
 }
 
 #[post("/<event_name>/delete")]
 fn delete_event(pool: &State<DatabasePool>, event_name: String) -> Status {
-    let mut conn = pool.get().expect("Connection from pool");
-    match diesel::delete(EventTable.filter(schema::event::name.eq(event_name))) .execute(&mut conn) {
+    let mut conn = pool.get().expect("ERROR: Failed to get database connection from pool.");
+
+    match diesel::delete(EventTable.filter(schema::event::name.eq(event_name))).execute(&mut conn) {
         Ok(_) => Status::Ok,
-        Err(_) => Status::BadRequest,
+        Err(_) => Status::BadRequest, // TODO Better Responses 
     }
 }
 
@@ -78,7 +78,7 @@ fn get_attendees(pool: &State<DatabasePool>, event_name: String) -> Json<Vec<Att
     let result =  AttendeeTable
         .filter(schema::attendee::event_name.eq(event_name))
         .load::<Attendee>(&mut conn)
-        .expect("Load data from attendee table in get_attendees");
+        .expect("ERROR: Failed to load data from attendee table"); // TODO: Error handling
 
     Json(result)
 }
