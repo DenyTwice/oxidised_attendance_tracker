@@ -49,7 +49,7 @@ Use `cargo run` to start the server and `cargo build` to get the compiled binary
 }
 ```
 - Example:
-```json
+```shell
 curl --request POST \
   --url http://127.0.0.1:8000/create_event \
   --header 'Content-Type: application/json' \
