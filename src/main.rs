@@ -1,6 +1,7 @@
 mod models;
 mod schema;
 
+use std::collections::HashMap;
 use models::{NewEvent, Event, Attendee};
 use schema::event::table as EventTable;
 use schema::attendee::table as AttendeeTable;

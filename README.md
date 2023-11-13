@@ -3,7 +3,7 @@
 Backend for [Aaryanajith/AttendenceTracker_Frontend](https://github.com/Aaryanajith/AttendenceTracker_Frontend), 
 a Flutter app for keeping track of attendees at events.
 
-Made Rocket.rs and Diesel. 
+Made with Rocket.rs and Diesel. 
 
 ## Installing
 
@@ -26,7 +26,36 @@ Run migrations to create required tables in your database:
 Or revert both migrations using `diesel migration revert`
 and then run them as stated above.
 
-### Step 3: Run
+### Step 3: Run/Build
 Use `cargo run` to start the server and `cargo build` to get the compiled binary.
 
 ## API Documentation
+
+### Create an event
+- Endpoint: `POST /create_event`
+- Description: Creates a new event.
+- Response:
+    - `201 OK`: Returns the created event object.
+    - `400 Bad Request`: If the request JSON was malformed.
+    - `422 Unprocessable Entity`: Server failed to process the JSON.
+    - `500 Internal Server Error`: Server failed to insert the entity.
+- Request Body: 
+```json
+{
+	"name": "String",
+	"start_date": "String in %d/%m/%Y format."
+	"total_days": "integer",
+	"total_sessions": "integer" 
+}```
+- Example:
+```json
+curl --request POST \
+  --url http://127.0.0.1:8000/create_event \
+  --header 'Content-Type: application/json' \
+  --data '{
+	"name": "Test Request",
+	"start_date": "01/01/2000",
+	"total_days": 2,
+	"total_sessions": 2
+}'```
+
