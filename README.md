@@ -46,7 +46,8 @@ Use `cargo run` to start the server and `cargo build` to get the compiled binary
 	"start_date": "String in %d/%m/%Y format."
 	"total_days": "integer",
 	"total_sessions": "integer" 
-}```
+}
+```
 - Example:
 ```json
 curl --request POST \
