@@ -1,7 +1,9 @@
+use super::schema::{event, attendee};
+
 use diesel::prelude::*;
+
 use serde::{Serialize, Deserialize};
 use serde_json::Value as JsonValue;
-use super::schema::{event, attendee};
 
 #[derive(Queryable, Serialize, Deserialize, Insertable)]
 #[diesel(table_name = event)]
@@ -25,6 +27,7 @@ pub struct NewEvent {
 impl From<NewEvent> for Event {
     fn from(value: NewEvent) -> Self {
         const DATE_FORMAT: &str = "%d/%m/%Y";
+
         let date = chrono::NaiveDate::parse_from_str(&value.start_date, DATE_FORMAT)
             .expect("ERROR: Could not parse date from string while converting NewEvent to Event.");
 

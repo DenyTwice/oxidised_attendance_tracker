@@ -2,6 +2,7 @@ mod models;
 mod schema;
 
 use std::collections::HashMap;
+
 use models::{NewEvent, Event, Attendee};
 use schema::event::table as EventTable;
 use schema::attendee::table as AttendeeTable;
@@ -23,16 +24,19 @@ type DatabasePool = r2d2::Pool<diesel::r2d2::ConnectionManager<PgConnection>>;
 fn rocket() -> _ {
 
     dotenv::dotenv().ok();
-    let database_url: String = std::env::var("DATABASE_URL").expect("ERROR: Could not get database URL from environment variable.");
+    let database_url: String = std::env::var("DATABASE_URL")
+        .expect("ERROR: Could not get database URL from environment variable.");
 
     let manager = diesel::r2d2::ConnectionManager::<PgConnection>::new(database_url);
-    let pool = r2d2::Pool::builder().build(manager).expect("ERROR: Could not build connection pool for database.");
+    let pool = r2d2::Pool::builder()
+        .build(manager)
+        .expect("ERROR: Could not build connection pool for database.");
 
     rocket::build()
         .manage(pool)
         .mount("/", rocket::routes![
                create_event, get_events, delete_event, 
-               get_attendees, upload_csv
+               upload_csv, get_attendees
         ])
 }
 
@@ -41,7 +45,8 @@ fn create_event(pool: &State<DatabasePool>, data: Json<NewEvent>) -> Status {
     let new_event: NewEvent = data.into_inner();
     let insertable_event: models::Event = models::Event::from(new_event);
 
-    let mut connection = pool.get().expect("ERROR: Failed to get database connection from pool.");
+    let mut connection = pool.get()
+        .expect("ERROR: Failed to get database connection from pool.");
 
     diesel::insert_into(EventTable)
         .values(&insertable_event)
@@ -53,7 +58,8 @@ fn create_event(pool: &State<DatabasePool>, data: Json<NewEvent>) -> Status {
 
 #[get("/events")]
 fn get_events(pool: &State<DatabasePool>) -> Json<Vec<Event>> {
-    let mut conn = pool.get().expect("ERROR: Failed to get database connection from pool.");
+    let mut conn = pool.get()
+        .expect("ERROR: Failed to get database connection from pool.");
 
     let result = EventTable
         .load::<Event>(&mut conn)
@@ -64,7 +70,8 @@ fn get_events(pool: &State<DatabasePool>) -> Json<Vec<Event>> {
 
 #[post("/<event_name>/delete")]
 fn delete_event(pool: &State<DatabasePool>, event_name: String) -> Status {
-    let mut conn = pool.get().expect("ERROR: Failed to get database connection from pool.");
+    let mut conn = pool.get()
+        .expect("ERROR: Failed to get database connection from pool.");
 
     match diesel::delete(EventTable.filter(schema::event::name.eq(event_name))).execute(&mut conn) {
         Ok(_) => Status::Ok,
@@ -74,7 +81,8 @@ fn delete_event(pool: &State<DatabasePool>, event_name: String) -> Status {
 
 #[get("/<event_name>/attendees")]
 fn get_attendees(pool: &State<DatabasePool>, event_name: String) -> Json<Vec<Attendee>> {
-    let mut conn = pool.get().expect("Connection from pool");
+    let mut conn = pool.get()
+        .expect("ERROR: Failed to get database connection from pool");
     
     let result =  AttendeeTable
         .filter(schema::attendee::event_name.eq(event_name))
@@ -110,7 +118,7 @@ async fn upload_csv(pool: &State<DatabasePool>, event: &str, data: Data<'_>) -> 
     };
 
     let mut rdr = csv::ReaderBuilder::new()
-        .has_headers(false)
+        .has_headers(true)
         .from_reader(string_data.as_bytes());
 
     let mut records = Vec::new();
