@@ -58,7 +58,8 @@ curl --request POST \
 	"start_date": "01/01/2000",
 	"total_days": 2,
 	"total_sessions": 2
-}'```
+}'
+```
 
 ## Delete an Event
 
